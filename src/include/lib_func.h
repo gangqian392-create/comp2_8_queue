@@ -1,45 +1,99 @@
-﻿#pragma once // インクルードガード
+﻿#include <stdio.h>
+#include <stdlib.h>
+#include "queue.h"
 
-#include <stdbool.h>
-
-// C++ でCのライブラリを使うときのおまじない
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-typedef struct
+void initialize(QUEUE* q, size_t mem_size)
 {
-	int* head;
-	int* tail;
+    q->memory_begin = (int*)malloc(sizeof(int) * mem_size);
+    q->memory_end = q->memory_begin + mem_size;
 
-	int* memory_begin;
-	int* memory_end;
-}QUEUE;
+    q->head = q->memory_begin;   // dequeue の位置
+    q->tail = q->memory_begin;   // enqueue の位置
+}
 
-//               head           tail
-//      ------------------------------------ 
-//      |    |    |****|****|****|oooo|    |
-//      ------------------------------------  
-// memory_begin                          memory_end
-//
-// 次にデータを追加するときはooooの位置に追加する
+void finalize(QUEUE* q)
+{
+    free(q->memory_begin);
+    q->memory_begin = NULL;
+    q->memory_end = NULL;
+    q->head = NULL;
+    q->tail = NULL;
+}
 
+// キューが空か？
+bool isEmpty(const QUEUE* q)
+{
+    return q->head == q->tail;
+}
 
-void initialize(QUEUE* q, size_t mem_size);       // mem_size の容量でキュー用のメモリを確保する
-void finalize(QUEUE* q);                          // 確保したメモリを解放する
+// キューに入っている要素数
+int countQueuedElements(const QUEUE* q)
+{
+    if (q->tail >= q->head)
+        return q->tail - q->head;
+    else
+        return (q->memory_end - q->head) + (q->tail - q->memory_begin);
+}
 
-bool enqueue(QUEUE* q, int val);                  // valの値をキューに入れる。実行の成否を返す
-bool enqueue_array(QUEUE* q, int* addr, int num); // addrから始まるnum個の整数をキューに入れる。実行の成否を返す
+// キューにあと何個入れられるか
+int countQueueableElements(const QUEUE* q)
+{
+    return (q->memory_end - q->memory_begin) - countQueuedElements(q) - 1;
+}
 
-int dequeue(QUEUE* q);                            // キューから一つの要素を取り出す(不具合時は0を返す)
-int dequeue_array(QUEUE* q, int* addr, int num);  // addrにキューからnumの要素を取り出す。取り出せた個数を返す
+// 1つ追加
+bool enqueue(QUEUE* q, int val)
+{
+    // 満杯なら false
+    if (countQueueableElements(q) <= 0) return false;
 
-bool isEmpty(const QUEUE* s);                     // キューが空かどうかを調べる
-int countQueuedElements(const QUEUE* q);          // 挿入されたデータ数を得る
-int countQueueableElements(const QUEUE* q);       // 挿入可能なデータ数を得る
+    *(q->tail) = val;
+    q->tail++;
 
-	// C++ でCのライブラリを使うときのおまじない
-#ifdef __cplusplus
-} // extern "C"
-#endif
+    // 循環
+    if (q->tail == q->memory_end)
+        q->tail = q->memory_begin;
+
+    return true;
+}
+
+// 複数追加
+bool enqueue_array(QUEUE* q, int* addr, int num)
+{
+    if (countQueueableElements(q) < num)
+        return false;  // 入り切らない
+
+    for (int i = 0; i < num; i++)
+    {
+        enqueue(q, addr[i]);
+    }
+    return true;
+}
+
+// 1つ取り出す
+int dequeue(QUEUE* q)
+{
+    if (isEmpty(q)) return 0; // 取り出せない
+
+    int result = *(q->head);
+    q->head++;
+
+    if (q->head == q->memory_end)
+        q->head = q->memory_begin;
+
+    return result;
+}
+
+// 複数取り出す
+int dequeue_array(QUEUE* q, int* addr, int num)
+{
+    int count = 0;
+
+    while (count < num && !isEmpty(q))
+    {
+        addr[count] = dequeue(q);
+        count++;
+    }
+
+    return count;  // 実際に取り出せた数
+}
